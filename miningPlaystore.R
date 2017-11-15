@@ -175,7 +175,8 @@ lapply(apps, function(app){
       unlist %>%
       paste(collapse="_")
     
-    png(filename = paste("~/local/comparacionEasy_Uber_99/imagenes/", nombre1, ".png", sep=""), 
+    png(filename = paste("~/local/comparacionEasy_Uber_99/imagenes/", 
+                         nombre1, ".png", sep=""), 
         width = 1200, height = 800, res = 100 )
     plot(cluster)
     dev.off()

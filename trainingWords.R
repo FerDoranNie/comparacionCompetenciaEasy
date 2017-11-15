@@ -41,9 +41,22 @@ palabras <- palabras %>%
 
 
 
-
 palabrasEntrenamiento <- palabras %>% 
-  .[, c("palabra", "sentimientoAgrado")]
+  .[, c("palabra", "sentimiento")]
 
 
-palabrasEntrenamiento
+matriz <- create_matrix(palabrasEntrenamiento, language = "spanish")
+matriz <- as.matrix(matriz)
+
+test <- naiveBayes(matriz[1:1000,], as.character(matriz[1:1000, 1]))
+
+predict(test, as.data.frame(names(matriz[1:1000, 1])))
+
+## Example with metric predictors:
+data(iris)
+m <- naiveBayes(Species ~ ., data = iris)
+## alternatively:
+m
+table(predict(m, iris), iris[,5])
+
+

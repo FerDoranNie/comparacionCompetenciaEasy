@@ -11,3 +11,5 @@ redes sociales (Facebook y Twitter) de  Easy taxi y su competencia.
 
 * R
 * Python
+
+
