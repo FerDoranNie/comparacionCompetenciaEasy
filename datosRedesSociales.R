@@ -79,8 +79,6 @@ comentariosFB %>%
   write.csv("~/local/comparacionEasy_Uber_99/data/comentariosFB.csv", row.names = F)
 
 
-
-
 # Datos Twitter  ----------------------------------------------------------
 idsTW <- c(idsTW[-length(idsTW)], "715649691279560705")
 
@@ -92,6 +90,9 @@ tweets <- lapply(idsTW, function(twitter){
   print(twitter)
   if(!is.null(datosRed)){
     datosRed <- twListToDF(datosRed)
+    datosRed <- datosRed %>% 
+      data.table %>% 
+      .[, idOrigen := twitter ]
     return(datosRed)
   }else{
     return(NULL)
@@ -102,13 +103,6 @@ tweets <- lapply(idsTW, function(twitter){
 })
 
 tweets <- do.call("rbind", tweets)
-
 tweets %>% 
   write.csv("~/local/comparacionEasy_Uber_99/data/tweets.csv", row.names = F)
-
-
-
-
-
-
 
