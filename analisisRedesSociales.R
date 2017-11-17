@@ -98,7 +98,7 @@ descuento <- posteosFB %>%
 
 # Quejas, felicitaciones, sugerencias
 quejasFB <- comentariosFB %>% 
-  .[grepl("(?=.*mal|servicio|pesimo|malisimo|queja|robo|mala experiencia|abuso|abusando|fraude|fraudulento|violencia|acoso)", 
+  .[grepl("(?=.*mal|servicio|pesimo|malisimo|queja|robo|mala experiencia|abuso|abusando|fraude|fraudulento|violencia|acoso|caro)", 
           message, perl=T, 
           ignore.case = T)] 
 
@@ -139,13 +139,13 @@ lapply(origenes, function(origen){
     tm_map(removeNumbers) 
     
   # x11()
-  # wordcloud(X, max.words = 500, scale= c(8, 1), 
+  # wordcloud(X, max.words = 500, scale= c(8, 1),
   #             colors = colores[2:length(colores)], min.freq = 0.00001)
-  #   
+  # 
   # text(x = 0.5, y = 1, labels = origen)
   # 
-  t1           <- TermDocumentMatrix(X)  
-  desparsedt1  <- removeSparseTerms(t1, 0.96)
+  t1           <- TermDocumentMatrix(X)
+  desparsedt1  <- removeSparseTerms(t1, 0.999)
   distribucion <- dist(scale(desparsedt1))
   cluster      <- hclust(distribucion)
   x11()
