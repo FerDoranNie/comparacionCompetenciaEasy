@@ -17,6 +17,22 @@ colores <- palettetown::pokepal("quilava", spread=12)
 meses <- c("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio",
            "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")
 
+risaIndeseable <- c("ja", "je", "ji", "jo")
+
+risaIndeseable <- lapply(risaIndeseable, function(x){
+  z <- mapply(rep, x, times=1:10)
+  z <- sapply(z,paste, collapse="")
+  z <- z %>%  unlist
+})
+
+risaIndeseable <- risaIndeseable  %>%  unlist %>% 
+  paste(sep=",")
+
+indeseables <- c("buenos", "dias", "tardes", "noches", "mas", "gracias", "hola", 
+                 "noche", "dia", "tarde", "nao", "sao")
+
+indeseables <- c(indeseables, risaIndeseable)
+
 
 # Datos ----------------------------------------------------------------------
 posteosFB <- read.csv("~/local/comparacionEasy_Uber_99/data/posteosFB.csv",
@@ -30,9 +46,18 @@ tweets <-  read.csv("~/local/comparacionEasy_Uber_99/data/tweets.csv",
                     header = T)
 
 
-idsRedes <- read.csv("~/local/idsRedesSociales.csv", header = T)
+idsRedes <- read.csv("~/local/idsRedesSociales.csv", header = T) %>% 
+  data.table
 
 # Manipulacion ------------------------------------------------------------
+idsFb <- idsRedes %>% 
+  .[red=="facebook"] %>% 
+  .$id
+
+idsTw <- idsRedes %>% 
+  .[red=="twitter"] %>% 
+  .$id
+
 idsRedes <- idsRedes %>% 
   .[, c("id", "pais")]
 
@@ -71,7 +96,9 @@ levels(tweets$mesFactor) <- meses[1:length(levels(tweets$mesFactor))]
 
 posteosFB <- merge(posteosFB, idsRedes, by.x="from_id", by.y="id") %>% 
   data.table %>% 
-  .[, origen  := paste(from_name, pais, sep="_")]
+  .[, origen  := paste(from_name, pais, sep="_")] %>% 
+  .[, origen  := gsub("[[:space:]]", "_", origen)]
+
 
 origenPosteo <- posteosFB %>% 
   .[, c("id", "from_id", "origen")] %>% 
@@ -97,34 +124,83 @@ descuento <- posteosFB %>%
   
 
 # Quejas, felicitaciones, sugerencias
-quejasFB <- comentariosFB %>% 
-  .[grepl("(?=.*mal|servicio|pesimo|malisimo|queja|robo|mala experiencia|abuso|abusando|fraude|fraudulento|violencia|acoso|caro)", 
-          message, perl=T, 
-          ignore.case = T)] 
+comentariosFB <- comentariosFB %>% 
+  .[!from_id %in% idsFb]
+
+palabrasFelicidad <- c("excelente","bueno", "felicidades", "me gusta", 
+                       "felicitaciones", "agrado", "felicito", "parabens", 
+                       "parabéns", "bom", "gusta")
+
+palabrasQuejas <- c("mal", "pesimo", "malisimo", "queja", "robo",
+                    "mala", "abuso", "abusando", "deficiente", "fraude", 
+                    "fraudulento", "violencia", "acoso", "caro", "ruim", "pobre",
+                    "horrible")
+
+palabrasAyuda <- c("ayuda", "ayudenme", "ajuda", "help", "solicito ayuda", 
+                   "Peço ajuda", "auxilio")
+
+palabrasRecomendacion <- c("sugerencia", "sugerir", "sugiero", "recomiendo", 
+                           "recomendar", "recomendaré", "recomendare", "pedir", 
+                           "opino", "opinar", "opinion")
+
+palabrasFelicidad     <- paste(palabrasFelicidad, collapse="|")
+palabrasQuejas        <- paste(palabrasQuejas, collapse="|")
+palabrasAyuda         <- paste(palabrasAyuda, collapse="|")
+palabrasRecomendacion <- paste(palabrasRecomendacion, collapse="|")
 
 felicitacionesFB <- comentariosFB %>% 
-  .[grepl("(?=.*excelente servicio|bueno|felicidades|me gusta|felicitaciones|agrado|felicito)", 
-          message, perl=T, 
-          ignore.case = T)] 
+  .[grepl(paste("(", "?=.*", palabrasFelicidad, ")", sep=""), 
+          message, perl=T, ignore.case = T)] %>% 
+  .[!grepl(paste("(", "?=.*", palabrasQuejas, ")", sep=""), 
+          message, perl=T, ignore.case = T)] %>% 
+  .[!grepl(paste("(", "?=.*", palabrasAyuda, ")", sep=""), 
+          message, perl=T, ignore.case = T)] %>% 
+  .[!grepl(paste("(", "?=.*", palabrasRecomendacion, ")", sep=""), 
+          message, perl=T, ignore.case = T)] 
+
+
+quejasFB <- comentariosFB %>% 
+  .[grepl(paste("(", "?=.*", palabrasQuejas, ")", sep=""), 
+          message, perl=T,  ignore.case = T)] %>% 
+  .[!grepl(paste("(", "?=.*", palabrasFelicidad, ")", sep=""), 
+          message, perl=T,  ignore.case = T)] %>% 
+  .[!grepl(paste("(", "?=.*", palabrasAyuda, ")", sep=""), 
+          message, perl=T,  ignore.case = T)] %>% 
+  .[!grepl(paste("(", "?=.*", palabrasRecomendacion, ")", sep=""), 
+           message, perl=T,  ignore.case = T)] 
+  
+
+
+ayudaFB <- comentariosFB %>% 
+  .[grepl(paste("(", "?=.*", palabrasAyuda, ")", sep=""), 
+          message, perl=T, ignore.case = T)] %>%  
+  .[!grepl(paste("(", "?=.*", palabrasQuejas, ")", sep=""), 
+        message, perl=T,  ignore.case = T)] %>% 
+  .[!grepl(paste("(", "?=.*", palabrasFelicidad, ")", sep=""), 
+           message, perl=T,  ignore.case = T)] %>% 
+  .[!grepl(paste("(", "?=.*", palabrasRecomendacion, ")", sep=""), 
+           message, perl=T,  ignore.case = T)] 
+  
 
 
 sugerenciasFB <- comentariosFB %>% 
-  .[grepl("(?=.*sugerencia|sugerir|sugiero|recomiendo|recomendar|recomendaré|recomendare|pedir|opino|opinar|opinion)", 
-          message, perl=T, 
-          ignore.case = T)] 
-
-
+  .[grepl(paste("(", "?=.*", palabrasRecomendacion, ")", sep=""), 
+          message, perl=T, ignore.case = T)] %>% 
+  .[!grepl(paste("(", "?=.*", palabrasQuejas, ")", sep=""), 
+          message, perl=T,  ignore.case = T)] %>% 
+  .[!grepl(paste("(", "?=.*", palabrasFelicidad, ")", sep=""), 
+           message, perl=T,  ignore.case = T)] %>% 
+  .[!grepl(paste("(", "?=.*", palabrasAyuda, ")", sep=""), 
+           message, perl=T,  ignore.case = T)] 
 
 
 # Vector_Sources ----------------------------------------------------------
 origenes <- unique(comentariosFB$origen)
 
-lapply(origenes, function(origen){
-  X <- quejasFB %>% 
-    .[origen==origen] %>% 
-    .[, message := gsub("[[:punct:]]", "", message)] %>% 
-    .[, "message"] %>%
-    unlist %>%  
+tmMaker <- function(datos){
+  require(tm)
+  x <- datos %>% 
+    unlist %>% 
     iconv(to="ASCII//TRANSLIT") %>% 
     iconv(to="utf-8") %>% 
     VectorSource %>% 
@@ -133,86 +209,125 @@ lapply(origenes, function(origen){
     tm_map(removeWords, stopwords("sp")) %>% 
     tm_map(removeWords, stopwords("en")) %>% 
     tm_map(removeWords, stopwords("ge")) %>%
+    tm_map(removeWords, stopwords("po")) %>%
+    tm_map(removeWords, indeseables) %>%
     tm_map(removePunctuation) %>% 
     tm_map(stripWhitespace) %>% 
     tm_map(PlainTextDocument) %>% 
     tm_map(removeNumbers) 
-    
-  # x11()
-  # wordcloud(X, max.words = 500, scale= c(8, 1),
-  #             colors = colores[2:length(colores)], min.freq = 0.00001)
-  # 
-  # text(x = 0.5, y = 1, labels = origen)
-  # 
-  t1           <- TermDocumentMatrix(X)
-  desparsedt1  <- removeSparseTerms(t1, 0.999)
+  return(x)
+}
+
+### Nubes de palabras
+
+lapply(origenes, function(origin){
+  X <- felicitacionesFB %>% 
+    .[origen==origin] %>% 
+    .[, message := gsub("[[:punct:]]", "", message)] %>% 
+    .[, "message"]
+  
+  X <- tmMaker(X)
+  x11()
+  wordcloud(X, max.words = 100, scale= c(8, 1),
+            colors = colores[2:length(colores)], min.freq = 0.05)
+
+  text(x = 0.5, y = 1, labels = origin)
+})
+
+
+
+lapply(origenes, function(origin){
+  X <- quejasFB %>%
+    .[origen==origin] %>%
+    .[, message := gsub("[[:punct:]]", "", message)] %>%
+    .[, "message"] 
+  X <- tmMaker(X)
+  
+  x11()
+  wordcloud(X, max.words = 100, scale= c(8, 1),
+              colors = colores[2:length(colores)], min.freq = 0.05)
+
+  text(x = 0.5, y = 1, labels = origin)
+})
+
+lapply(origenes, function(origin){
+  X <- sugerenciasFB %>% 
+    .[origen==origin] %>% 
+    .[, message := gsub("[[:punct:]]", "", message)] %>% 
+    .[, "message"] 
+  
+  X <- tmMaker(X)
+  x11()
+  wordcloud(X, max.words = 500, scale= c(8, 1), 
+            colors = colores[2:length(colores)], min.freq = 0.00001)
+  
+  text(x = 0.5, y = 1, labels = origin)
+})
+
+
+lapply(origenes, function(origin){
+  X <- ayudaFB %>% 
+    .[origen==origin] %>% 
+    .[, message := gsub("[[:punct:]]", "", message)] %>% 
+    .[, "message"] 
+  
+  X <- tmMaker(X)
+  x11()
+  wordcloud(X, max.words = 500, scale= c(8, 1), 
+            colors = colores[2:length(colores)], min.freq = 0.00001)
+  
+  text(x = 0.5, y = 1, labels = origin)
+})
+
+## Relaciones de palabras 
+
+lapply(origenes, function(origin){
+  X <- quejasFB %>%
+    .[origen==origin] %>%
+    .[, message := gsub("[[:punct:]]", "", message)] %>%
+    .[, "message"] 
+  
+  X  <- tmMaker(X)
+  
+  t1 <- TermDocumentMatrix(X)
+  
+  if(dim(t1)[2]> 300){
+    desparsedt1  <- removeSparseTerms(t1, 0.93) 
+    if(dim(t1)[2]> 800){
+      desparsedt1  <- removeSparseTerms(t1, 0.85)
+    }
+  }else{
+    desparsedt1  <- removeSparseTerms(t1, 0.95) 
+  }
+  
   distribucion <- dist(scale(desparsedt1))
   cluster      <- hclust(distribucion)
+  
   x11()
-  # plot(cluster)
   plot.phylo(as.phylo(cluster), type="fan", font=2, cex = 1,
-             edge.width = 2, tip.color = colores)
-  text(x = 0.5, y = 2, labels = origen)
+             edge.width = 2, tip.color = colores[2:length(colores)])
+  text(x = 0.5, y = 2, labels = origin)
   
+})
+
+lapply(origenes, function(origin){
+  X <- ayudaFB %>%
+    .[origen==origin] %>%
+    .[, message := gsub("[[:punct:]]", "", message)] %>%
+    .[, "message"] 
+  X <- tmMaker(X)
+  t1           <- TermDocumentMatrix(X)
+  desparsedt1  <- removeSparseTerms(t1, 0.94)
+  distribucion <- dist(scale(desparsedt1))
+  cluster      <- hclust(distribucion)
+   x11()
+  plot.phylo(as.phylo(cluster), type="fan", font=2, cex = 1,
+              edge.width = 2, tip.color = colores)
+   text(x = 0.5, y = 2, labels = origin)
   
 })
 
 
-
-
-
-
-lapply(origenes, function(origen){
-  X <- felicitacionesFB %>% 
-    .[origen==origen] %>% 
-    .[, message := gsub("[[:punct:]]", "", message)] %>% 
-    .[, "message"] %>%
-    unlist %>%  
-    iconv(to="ASCII//TRANSLIT") %>% 
-    iconv(to="utf-8") %>% 
-    VectorSource %>% 
-    VCorpus() %>% 
-    tm_map(content_transformer(tolower)) %>% 
-    tm_map(removeWords, stopwords("sp")) %>% 
-    tm_map(removeWords, stopwords("en")) %>% 
-    tm_map(removeWords, stopwords("ge")) %>%
-    tm_map(removePunctuation) %>% 
-    tm_map(stripWhitespace) %>% 
-    tm_map(PlainTextDocument) %>% 
-    tm_map(removeNumbers) 
-  
-  x11()
-  wordcloud(X, max.words = 500, scale= c(8, 1), 
-            colors = colores[2:length(colores)], min.freq = 0.00001)
-  
-  text(x = 0.5, y = 1, labels = origen)
-})
-
-lapply(origenes, function(origen){
-  X <- sugerenciasFB %>% 
-    .[origen==origen] %>% 
-    .[, message := gsub("[[:punct:]]", "", message)] %>% 
-    .[, "message"] %>%
-    unlist %>%  
-    iconv(to="ASCII//TRANSLIT") %>% 
-    iconv(to="utf-8") %>% 
-    VectorSource %>% 
-    VCorpus() %>% 
-    tm_map(content_transformer(tolower)) %>% 
-    tm_map(removeWords, stopwords("sp")) %>% 
-    tm_map(removeWords, stopwords("en")) %>% 
-    tm_map(removeWords, stopwords("ge")) %>%
-    tm_map(removePunctuation) %>% 
-    tm_map(stripWhitespace) %>% 
-    tm_map(PlainTextDocument) %>% 
-    tm_map(removeNumbers) 
-  
-  x11()
-  wordcloud(X, max.words = 500, scale= c(8, 1), 
-            colors = colores[2:length(colores)], min.freq = 0.00001)
-  
-  text(x = 0.5, y = 1, labels = origen)
-})
 
 
 ## Árboles de decisión
