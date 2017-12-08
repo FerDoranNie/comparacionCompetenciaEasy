@@ -31,14 +31,14 @@ risaIndeseable <- risaIndeseable  %>%  unlist %>%
 indeseables <- c("buenos", "dias", "tardes", "noches", "mas", "gracias", "hola", 
                  "noche", "dia", "tarde", "nao", "sao")
 
-indeseables <- c(indeseables, risaIndeseable)
+# indeseables <- c(indeseables, risaIndeseable)
 
 
 # Datos ----------------------------------------------------------------------
 posteosFB <- read.csv("~/local/comparacionEasy_Uber_99/data/posteosFB.csv",
                       header = T, stringsAsFactors = F)
 
-comentariosFB <- fread("~/local/comparacionEasy_Uber_99/data/comentariosFB.csv", 
+comentariosFB <- read.csv("~/local/comparacionEasy_Uber_99/data/comentariosFB.csv", 
                           header = T, stringsAsFactors = F)
 
 
@@ -48,6 +48,43 @@ tweets <-  read.csv("~/local/comparacionEasy_Uber_99/data/tweets.csv",
 
 idsRedes <- read.csv("~/local/idsRedesSociales.csv", header = T) %>% 
   data.table
+
+
+palabras <- read.csv("~/local/palabrasEspaniol/SpanishDAL-v1.2/meanAndStdev.csv",
+                    header = F, sep = ";")
+
+names(palabras) <- c("palabra", "media_agrado", "media_activacion",
+                     "media_imaginabilidad",
+                     "stdev_agrado", "stdev_activacion", "stdev_imaginabilidad")
+
+separados <- do.call("rbind", 
+                     strsplit(as.character(palabras$palabra), "_", fixed = T)) %>% 
+  data.frame()
+
+palabras        <- cbind(separados, palabras[-1]) 
+names(palabras) <- c("palabra","tipo", "media_agrado", "media_activacion", 
+                     "media_imaginabilidad","stdev_agrado", "stdev_activacion", 
+                     "stdev_imaginabilidad")
+
+
+
+palabras <- palabras %>%  
+  data.table %>% 
+  .[, sentimiento := ifelse(media_agrado<2, 
+                            "Negativo", 
+                            ifelse(media_agrado>2, "Positivo","Neutro"))] %>%  
+  .[, tipo_palabra := ifelse(tipo=="N", "Sustantivo", 
+                             ifelse(tipo=="V","Verbo",
+                                    ifelse(tipo=="A",
+                                           "Adjetivo","Adverbio")))] %>% 
+  .[, sentimientoAgrado := ifelse(sentimiento=="Positivo",1, 
+                                  ifelse(sentimiento=="Negativo", -1, 0))]
+
+
+
+palabrasEntrenamiento <- palabras %>% 
+  .[, c("palabra", "sentimiento")]
+
 
 # Manipulacion ------------------------------------------------------------
 idsFb <- idsRedes %>% 
@@ -190,66 +227,131 @@ origenes <- unique(comentariosFB$origen)
 tmMaker <- function(datos){
   require(tm)
   x <- datos %>% 
-    unlist %>%
-    # stri_enc_toutf8 %>% 2
-    iconv(to="latin1") %>% 
+    unlist 
+
+  x <- gsub("[[:punct:]]", "", x)
+  x <- gsub("[[:digit:]]", "", x)
+  
+  x <- x %>%
+    as.character %>%
     iconv(to="ASCII//TRANSLIT") %>%
-    iconv(to="utf-8") %>%
+    stri_enc_toutf8 %>% 
+    # stri_escape_unicode %>% 
+    # iconv(to="utf-8") %>%
+    na.omit %>% 
+    as.character %>% 
     VectorSource %>% 
-    VCorpus %>% 
+    VCorpus %>%
+    # inspect
     tm_map(content_transformer(tolower)) %>% 
     tm_map(removeWords, stopwords("sp")) %>% 
-    tm_map(removeWords, stopwords("en")) %>% 
+    tm_map(removeWords, stopwords("en")) %>%
     tm_map(removeWords, stopwords("ge")) %>%
     tm_map(removeWords, stopwords("po")) %>%
-    tm_map(removeWords, indeseables) %>%
+    # tm_map(removeWords, indeseables) %>%
     tm_map(removePunctuation) %>% 
     tm_map(stripWhitespace) %>% 
     tm_map(PlainTextDocument) %>% 
     tm_map(removeNumbers) 
+  
   return(x)
+}
+
+tmSentiment <- function(x){
+  require(tm)
+  X <- tmMaker(x)
+  documentoMatrix <- TermDocumentMatrix(X)
+  documentoMatrix <- slam::row_sums(documentoMatrix)
+  palabras <- names(documentoMatrix)
+  numeros  <-  as.numeric(documentoMatrix)
+  documentoMatrix <- data.frame(palabra = palabras, numero  = numeros)
+  documentoMatrix <- documentoMatrix %>% 
+    data.table %>% 
+    .[, palabra  := as.character(palabra)]
+  
+  documentoMatrix <- documentoMatrix %>% 
+    dplyr::left_join(palabrasEntrenamiento, by="palabra") %>% 
+    data.table %>% 
+    .[, sentimiento  := ifelse(is.na(sentimiento), "Sin_clasificar", 
+                               sentimiento)] %>% 
+    .[, id := dplyr::row_number(sentimiento)] %>% 
+    tidyr::spread(sentimiento, numero)
+  
+  # documentoMatrix[is.na(documentoMatrix)] <- 0
+  # nombresmatrix   <- documentoMatrix[, 1]
+  # documentoMatrix <- documentoMatrix %>% 
+  #   dplyr::select(-palabra, -id) %>% 
+  #   as.matrix
+  # 
+  # rownames(documentoMatrix)<- nombresmatrix
+  
+  return(head(documentoMatrix))
 }
 
 ### Nubes de palabras
 
-lapply(origenes[3], function(origin){
+test <- felicitacionesFB %>%
+  .[origen == origenes[3]] %>%
+  .[, message := as.character(message)] %>%
+  .[, message := gsub("[[:punct:]]", "", message)] %>%
+  .[, c("message")]
+
+
+tmSentiment(test)
+# 
+# 
+# test %>%  
+#   # unlist %>% 
+#   # iconv(to="latin1") %>%
+#   iconv(to="ASCII//TRANSLIT") %>%
+#   stri_enc_toutf8 %>% 
+#   # stri_escape_unicode %>% 
+#   # iconv(to="utf-8") %>%
+#   na.omit %>% 
+#   as.character %>% 
+#   VectorSource %>% 
+#   VCorpus %>%
+#   # inspect
+#   tm_map(content_transformer(tolower)) %>% 
+#   tm_map(removeWords, stopwords("sp")) %>% 
+#   tm_map(removeWords, stopwords("en")) %>%
+#   tm_map(removeWords, stopwords("ge")) %>%
+#   tm_map(removeWords, stopwords("po")) %>%
+#   # tm_map(removeWords, indeseables) %>%
+#   tm_map(removePunctuation) %>% 
+#   tm_map(stripWhitespace) %>% 
+#   tm_map(PlainTextDocument) %>% 
+#   tm_map(removeNumbers) %>% 
+#     wordcloud
+#   
+# 
+# tmMaker(test)
+
+
+lapply(origenes, function(origin){
   print(origin)
   X <- felicitacionesFB %>% 
     .[origen == origin] %>% 
-    .[, message := gsub("[[:punct:]]", "", message)] %>% 
+    # .[, message := gsub("[[:punct:]]", "", message)] %>% 
     .[, c("message")]
 
+
   Y <- X %>% 
-    unlist %>%
-    as.character %>% 
-    stri_enc_toutf8 %>% 
-    # stri_enc_toutf8 %>% 
-    # iconv(to="latin1") %>%
-    # iconv(to="ASCII//TRANSLIT") %>%
-    iconv(to="utf-8") %>%
-    VectorSource %>% 
-    VCorpus #%>% 
-    # tm_map(content_transformer(tolower)) %>% 
-    # tm_map(removeWords, stopwords("sp")) %>% 
-    # tm_map(removeWords, stopwords("en")) %>% 
-    # tm_map(removeWords, stopwords("ge")) %>%
-    # tm_map(removeWords, stopwords("po")) %>%
-    # tm_map(removeWords, indeseables) %>%
-    # tm_map(removePunctuation) %>% 
-    # tm_map(stripWhitespace) %>% 
-    # tm_map(PlainTextDocument) %>% 
-    # tm_map(removeNumbers) 
+    tmMaker
   
-  # dim(X)
+  # XYT = Y %>%  TermDocumentMatrix()
+  # XYT = slam::row_sums(XYT)
+  # XYT = data.frame(palabra = XYT %>%  names, numero= XYT %>%  as.numeric)
+  
   # x11()
-  # wordcloud(X, max.words = 100, scale= c(3, 1),
-  #           colors = colores[2:length(colores)], min.freq = 0.05)
+  # wordcloud(Y)
+  # wordcloud(Y, max.words = 100, scale= c(3, 1),
+  #            colors = colores[2:length(colores)], min.freq = 0.05)
 
   # text(x = 0.5, y = 1, labels = origin)
 })
 
 
-felicitacionesFB %>% head
 
 
 lapply(origenes, function(origin){
